@@ -1,5 +1,8 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
+import argparse
 import json
+from pathlib import Path
+import time
 import bs4
 import requests
 
@@ -14,7 +17,7 @@ def get_full_url(relative_url: str) -> str:
 def parse_quote(quote: bs4.element.Tag) -> Dict[str, Any]:
     quote_dict = {}
 
-    text = quote.find("div", attrs={"class": "quoteText"}).text.split("―")[0].strip()
+    text = quote.find("div", attrs={"class": "quoteText"}).text.split("―")[0].strip()[1:-1]
     quote_dict["text"] = text
 
     author = quote.find("span", attrs={"class": "authorOrTitle"}).text.strip()
@@ -60,7 +63,7 @@ def parse_page(page: Union[int, str]) -> List[Dict[str, Any]]:
     return parse_quotes(quotes)
 
 
-def parse_all_pages(verbose: bool = False) -> List[Dict[str, Any]]:
+def parse_all_pages(wait_secs: Optional[float] = None, verbose: bool = False) -> List[Dict[str, Any]]:
     PAGE_START = 1
     PAGE_END = 100
     all_parsed_quotes = []
@@ -69,6 +72,8 @@ def parse_all_pages(verbose: bool = False) -> List[Dict[str, Any]]:
             print(f"parsing page {page}")
         parsed_quotes = parse_page(page)
         all_parsed_quotes.extend(parsed_quotes)
+        if wait_secs:
+            time.sleep(wait_secs)
     return all_parsed_quotes
 
 
@@ -77,6 +82,31 @@ def write_to_json(path: str, data: List[Dict[str, Any]]) -> None:
         json.dump(data, f)
 
 
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "-p",
+        "--json-path",
+        dest="json_path",
+        default=Path("all_popular_quotes.json"),
+        type=Path,
+        help="path to output json file",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        help="verbosity",
+    )
+
+    args = parser.parse_args(argv)
+
+    quotes = parse_all_pages(verbose=args.verbose)
+    write_to_json(args.json_path, quotes)
+
+
 if __name__ == "__main__":
-    quotes = parse_all_pages(verbose=True)
-    write_to_json("all_popular_quotes.json", quotes)
+    main()
